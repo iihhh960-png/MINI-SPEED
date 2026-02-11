@@ -1,12 +1,27 @@
 # -*- coding: utf-8 -*-
 import telebot
+import os
 from pymongo import MongoClient
 from telebot import types
 from datetime import datetime
+from flask import Flask
+from threading import Thread
+
+# --- RENDER PORT FIX ---
+app = Flask('')
+@app.route('/')
+def home(): return "Bot is running!"
+
+def run():
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port)
+
+# Background မှာ Flask ကို Run ထားမယ်
+Thread(target=run).start()
 
 # --- CONFIGURATION ---
 API_TOKEN = '8132455544:AAGhjdfo3DvXlosgWuBWSJHAh9g1-mY11Fg'
-# သင့်ရဲ့ MongoDB Connection String ကို ဒီမှာ ထည့်ထားပါတယ်
+# သင့်ရဲ့ MongoDB Connection String
 MONGO_URL = 'mongodb+srv://dbZwd:db_ZweMann2009@zwe.l0e4gqx.mongodb.net/?retryWrites=true&w=majority&appName=Zwe'
 
 ADMIN_ID = 8062953746
@@ -103,7 +118,6 @@ def verify_join(message):
 @bot.message_handler(func=lambda m: m.text == "\U0001F3AF Missions")
 def mission_start(message):
     user_id = message.from_user.id
-    
     if missions_col.find_one({"user_id": user_id}):
         bot.send_message(user_id, "\U0000274C သင်ဤ Mission ကို လုပ်ဆောင်ပြီးပါပြီ။")
         return
@@ -146,8 +160,8 @@ def balance(message):
 def daily(message):
     user_id = message.from_user.id
     today = datetime.now().strftime("%Y-%m-%d")
-    
     data = daily_col.find_one({"user_id": user_id})
+    
     if data is None or data['last_date'] != today:
         daily_col.update_one({"user_id": user_id}, {"$set": {"last_date": today}}, upsert=True)
         users_col.update_one({"user_id": user_id}, {"$inc": {"balance": DAILY_REWARD}})
@@ -161,5 +175,5 @@ def invite(message):
     link = f"https://t.me/{bot_info.username}?start={message.from_user.id}"
     bot.send_message(message.chat.id, f"\U0001F465 **လူခေါ်ငွေရှာ**\n\n\U0001F517 Link: `{link}`", parse_mode="Markdown")
 
-print("Bot is running with MongoDB and Unicode Escapes...")
+print("Bot is running on Render with MongoDB and Port Fix...")
 bot.infinity_polling()
