@@ -15,6 +15,7 @@ def home():
     return "Bot is Running!"
 
 def run_flask():
+    # Render အတွက် Port 8080 ကို သုံးထားပါတယ်
     app.run(host='0.0.0.0', port=8080)
 
 # --- CONFIGURATION ---
@@ -22,8 +23,9 @@ API_TOKEN = '8132455544:AAG5pva1sGNV25FF9LyZRAh-aVXNLbIcHkc'
 ADMIN_ID = 8062953746
 WITHDRAW_CHANNEL = -1003804050982  
 
-# Supabase Connection URI (Render မှာ Data မပျောက်စေရန်)
-DB_URI = "postgresql://postgres:F9jx8BBkihsLl2t4@db.yoiiszudtnksoeytovrs.supabase.co:5432/postgres"
+# --- IMPORTANT: SUPABASE CONNECTION (IPv4 Compatible) ---
+# [YOUR-PASSWORD] နေရာမှာ သင်သတ်မှတ်ထားတဲ့ Database Password ကို အမှန်ထည့်ပေးပါ
+DB_URI = "postgresql://postgres.yoiiszudtnksoeytovrs:[F9jx8BBkihsLl2t4]@aws-1-ap-southeast-1.pooler.supabase.co:6543/postgres?sslmode=require"
 
 CHANNELS = [-1003628384777, -1003882533307, -1003804050982]
 CHANNEL_LINKS = ["https://t.me/JoKeR_FaN1", "https://t.me/raw_myid_hack_channel", "https://t.me/mini_speed_bot"]
@@ -39,20 +41,25 @@ bot = telebot.TeleBot(API_TOKEN)
 
 # --- DATABASE SETUP (SUPABASE) ---
 def get_db_connection():
+    # SSL Mode require ထည့်ထားမှ Render ကနေ Supabase ကို ချိတ်ဆက်မှု ပိုတည်ငြိမ်မှာပါ
     return psycopg2.connect(DB_URI)
 
 def init_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users 
-                      (user_id BIGINT PRIMARY KEY, balance INTEGER DEFAULT 0, referred_by BIGINT, is_rewarded INTEGER DEFAULT 0)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS daily_bonus 
-                      (user_id BIGINT PRIMARY KEY, last_date TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS missions 
-                      (user_id BIGINT PRIMARY KEY)''')
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''CREATE TABLE IF NOT EXISTS users 
+                          (user_id BIGINT PRIMARY KEY, balance INTEGER DEFAULT 0, referred_by BIGINT, is_rewarded INTEGER DEFAULT 0)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS daily_bonus 
+                          (user_id BIGINT PRIMARY KEY, last_date TEXT)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS missions 
+                          (user_id BIGINT PRIMARY KEY)''')
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print("Database initialized successfully!")
+    except Exception as e:
+        print(f"Database error: {e}")
 
 # --- HELPER FUNCTIONS ---
 def is_joined(user_id, channel_list):
@@ -86,7 +93,7 @@ def get_join_keyboard():
 def get_main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add("\U0001F4B0 လက်ကျန်စစ်ရန်", "\U0001F465 လူခေါ်ငွေရှာ")
-    markup.add("\U0001F3E6 ငွေထုတ်ရန်", "\U0001F3AF Missions")
+    markup.add("\U0001F3E6 Ngwe Thout Ran", "\U0001F3AF Missions")
     markup.add("\U0001F381 နေ့စဉ်ဘောနပ်စ်")
     return markup
 
@@ -262,7 +269,7 @@ def invite(message):
     link = f"https://t.me/{bot.get_me().username}?start={message.from_user.id}"
     bot.send_message(message.chat.id, f"\U0001F465 **ဖိတ်ခေါ်လင့်ခ်:**\n`{link}`", parse_mode="Markdown")
 
-@bot.message_handler(func=lambda m: m.text == "\U0001F3E6 ငွေထုတ်ရန်")
+@bot.message_handler(func=lambda m: m.text == "\U0001F3E6 Ngwe Thout Ran")
 def withdraw_start(message):
     if not check_membership(message): return
     conn = get_db_connection()
@@ -310,5 +317,5 @@ if __name__ == "__main__":
     t.daemon = True # Bot ပိတ်ရင် Web server ပါ တစ်ခါတည်းပိတ်အောင်
     t.start()
     
-    print("Bot is starting with Supabase & Web Service on Render...")
+    print("Bot is starting with Supabase (Pooler Port 6543) & Web Service on Render...")
     bot.infinity_polling()
