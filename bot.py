@@ -2,15 +2,8 @@
 import telebot
 import sqlite3
 import time
-import os
 from telebot import types
 from datetime import datetime
-from flask import Flask
-from threading import Thread
-
-# --- RENDER PERSISTENT STORAGE SETUP ---
-# Render Disk ရဲ့ path ကို /data လို့ ပေးခဲ့ရင် အောက်ကအတိုင်း သုံးရပါမယ်
-DB_PATH = "/data/bot_database.db" if os.path.exists("/data") else "bot_database.db"
 
 # --- CONFIGURATION ---
 API_TOKEN = '8132455544:AAG5pva1sGNV25FF9LyZRAh-aVXNLbIcHkc'
@@ -40,7 +33,7 @@ bot = telebot.TeleBot(API_TOKEN)
 
 # --- DATABASE SETUP ---
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS users 
                       (user_id INTEGER PRIMARY KEY, balance INTEGER DEFAULT 0, referred_by INTEGER, is_rewarded INTEGER DEFAULT 0)''')
@@ -53,21 +46,6 @@ def init_db():
 
 init_db()
 
-# --- KEEP ALIVE SERVER FOR RENDER ---
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Bot is alive!"
-
-def run_flask():
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
-
-def keep_alive():
-    t = Thread(target=run_flask)
-    t.daemon = True
-    t.start()
-
 # --- HELPER FUNCTIONS ---
 def is_joined(user_id, channel_list):
     for ch_id in channel_list:
@@ -77,6 +55,7 @@ def is_joined(user_id, channel_list):
         except: return False
     return True
 
+# Channel ထွက်သွားပါက စစ်ဆေးရန် Function
 def check_membership(message):
     user_id = message.from_user.id
     if not is_joined(user_id, CHANNELS):
@@ -123,7 +102,7 @@ def start(message):
         if ref_candidate.isdigit() and int(ref_candidate) != user_id:
             referrer_id = int(ref_candidate)
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     cursor.execute("SELECT user_id FROM users WHERE user_id=?", (user_id,))
     
@@ -143,7 +122,7 @@ def start(message):
 def verify_join(message):
     user_id = message.from_user.id
     if is_joined(user_id, CHANNELS):
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect('bot_database.db')
         cursor = conn.cursor()
         cursor.execute("SELECT referred_by, is_rewarded FROM users WHERE user_id=?", (user_id,))
         res = cursor.fetchone()
@@ -161,11 +140,12 @@ def verify_join(message):
     else:
         bot.send_message(message.chat.id, "\u26A0 Channel အားလုံး မ Join ရသေးပါ။ အကုန် Join ပေးပါ။", reply_markup=get_channel_inline_buttons(CHANNEL_LINKS))
 
+# --- MISSIONS ---
 @bot.message_handler(func=lambda m: m.text == "\U0001F3AF Missions")
 def mission_start(message):
     if not check_membership(message): return
     user_id = message.from_user.id
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     cursor.execute("SELECT user_id FROM missions WHERE user_id=?", (user_id,))
     
@@ -192,7 +172,7 @@ def mission_start(message):
 def verify_mission_callback(call):
     user_id = call.from_user.id
     if is_joined(user_id, MISSION_CHANNELS):
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect('bot_database.db')
         cursor = conn.cursor()
         cursor.execute("SELECT user_id FROM missions WHERE user_id=?", (user_id,))
         if not cursor.fetchone():
@@ -206,11 +186,12 @@ def verify_mission_callback(call):
     else:
         bot.answer_callback_query(call.id, "\u26A0 Channel အားလုံး မ Join ရသေးပါ။", show_alert=True)
 
+# --- BALANCE ---
 @bot.message_handler(func=lambda m: m.text == "\U0001F4B0 လက်ကျန်စစ်ရန်")
 def balance(message):
     if not check_membership(message): return
     user_id = message.from_user.id
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     cursor.execute("SELECT balance FROM users WHERE user_id=?", (user_id,))
     data = cursor.fetchone()
@@ -230,6 +211,7 @@ def balance(message):
     )
     bot.send_message(message.chat.id, info_text, parse_mode="Markdown")
 
+# --- DAILY BONUS ---
 @bot.message_handler(func=lambda m: m.text == "\U0001F381 နေ့စဉ်ဘောနပ်စ်")
 def daily(message):
     if not check_membership(message): return
@@ -237,7 +219,7 @@ def daily(message):
     current_time = int(time.time())
     wait_time = 86400 
     
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     cursor.execute("SELECT last_date FROM daily_bonus WHERE user_id=?", (user_id,))
     data = cursor.fetchone()
@@ -258,6 +240,7 @@ def daily(message):
         bot.send_message(message.chat.id, f"\u231B **နေ့စဉ်ဘောနပ်ကို ယူပြီးသားပါ။**\n\n**ပြန်ယူလို့ရမယ့်အချိန်: {hours} နာရီ {minutes} မိနစ်** \u2705", parse_mode="Markdown")
     conn.close()
 
+# --- INVITE ---
 @bot.message_handler(func=lambda m: m.text == "\U0001F465 လူခေါ်ငွေရှာ")
 def invite(message):
     if not check_membership(message): return
@@ -265,10 +248,11 @@ def invite(message):
     link = f"https://t.me/{bot_info.username}?start={message.from_user.id}"
     bot.send_message(message.chat.id, f"\U0001F465 **လူခေါ်ငွေရှာ**\n\n\U0001F517 Link: `{link}`", parse_mode="Markdown")
 
+# --- WITHDRAW ---
 @bot.message_handler(func=lambda m: m.text == "\U0001F3E6 ငွေထုတ်ရန်")
 def withdraw_start(message):
     if not check_membership(message): return
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     cursor.execute("SELECT balance FROM users WHERE user_id=?", (message.from_user.id,))
     data = cursor.fetchone()
@@ -300,7 +284,7 @@ def process_amount(message, method, info):
         return
     
     amount = int(message.text)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     cursor.execute("SELECT balance FROM users WHERE user_id=?", (message.from_user.id,))
     user_balance = cursor.fetchone()[0]
@@ -310,7 +294,7 @@ def process_amount(message, method, info):
         withdraw_text = (f"\U0001F514 **ငွေထုတ်တောင်းဆိုမှု**\n\n\U0001F464 User: `{message.from_user.id}`\n\U0001F4B0 Amount: {amount} Ks\n\U0001F4B3 Method: {method}\n\U0001F4DD Info: {info}")
         bot.send_message(WITHDRAW_CHANNEL, withdraw_text, parse_mode="Markdown")
         
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect('bot_database.db')
         cursor = conn.cursor()
         cursor.execute("UPDATE users SET balance = balance - ? WHERE user_id = ?", (amount, message.from_user.id))
         conn.commit()
@@ -324,7 +308,5 @@ def back(message):
     if not check_membership(message): return
     bot.send_message(message.chat.id, "\U0001F3E0 Main Menu", reply_markup=get_main_menu())
 
-if __name__ == "__main__":
-    print("Bot is starting on Render...")
-    keep_alive() # Flask server ကို background မှာ run ထားခြင်း
-    bot.infinity_polling()
+print("Bot is starting with Original Emojis & Auto-Check...")
+bot.infinity_polling()
