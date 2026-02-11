@@ -2,8 +2,20 @@
 import telebot
 import psycopg2 # Supabase (PostgreSQL) အတွက် Library
 import time
+import threading # Web Service အတွက်
+from flask import Flask # Web Service အတွက်
 from telebot import types
 from datetime import datetime
+
+# --- WEB SERVER FOR RENDER WEB SERVICE ---
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is Running!"
+
+def run_flask():
+    app.run(host='0.0.0.0', port=8080)
 
 # --- CONFIGURATION ---
 API_TOKEN = '8132455544:AAG5pva1sGNV25FF9LyZRAh-aVXNLbIcHkc'
@@ -41,8 +53,6 @@ def init_db():
     conn.commit()
     cursor.close()
     conn.close()
-
-init_db()
 
 # --- HELPER FUNCTIONS ---
 def is_joined(user_id, channel_list):
@@ -292,5 +302,13 @@ def wd_final(message, method, info):
 @bot.message_handler(func=lambda m: m.text == "\U0001F519 Back to Menu")
 def back(message): bot.send_message(message.chat.id, "\U0001F3E0 Main Menu", reply_markup=get_main_menu())
 
-print("Bot is starting with Supabase on Render...")
-bot.infinity_polling()
+# --- BOT STARTING WITH WEB SERVICE ---
+if __name__ == "__main__":
+    init_db()
+    # Web Server ကို Threading နဲ့ သီးသန့် Run ပါမယ် (Render Web Service အတွက်)
+    t = threading.Thread(target=run_flask)
+    t.daemon = True # Bot ပိတ်ရင် Web server ပါ တစ်ခါတည်းပိတ်အောင်
+    t.start()
+    
+    print("Bot is starting with Supabase & Web Service on Render...")
+    bot.infinity_polling()
