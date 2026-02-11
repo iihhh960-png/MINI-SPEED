@@ -7,7 +7,7 @@ from datetime import datetime
 from flask import Flask
 from threading import Thread
 
-# --- RENDER PORT FIX ---
+# --- RENDER PORT FIX (ဘာမှမပြောင်းလဲဘဲ ထည့်သွင်းပေးထားသည်) ---
 app = Flask('')
 @app.route('/')
 def home(): return "Bot is running!"
@@ -16,12 +16,11 @@ def run():
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
 
-# Background မှာ Flask ကို Run ထားမယ်
 Thread(target=run).start()
 
 # --- CONFIGURATION ---
 API_TOKEN = '8132455544:AAGhjdfo3DvXlosgWuBWSJHAh9g1-mY11Fg'
-# သင့်ရဲ့ MongoDB Connection String
+# သင့်ရဲ့ MongoDB Connection Link
 MONGO_URL = 'mongodb+srv://dbZwd:db_ZweMann2009@zwe.l0e4gqx.mongodb.net/?retryWrites=true&w=majority&appName=Zwe'
 
 ADMIN_ID = 8062953746
@@ -89,7 +88,7 @@ def start(message):
         if ref_candidate.isdigit() and int(ref_candidate) != user_id:
             referrer_id = int(ref_candidate)
 
-    # MongoDB check and insert
+    # MongoDB အသုံးပြုပြီး အချက်အလက်စစ်ဆေးခြင်း
     user = users_col.find_one({"user_id": user_id})
     if not user:
         users_col.insert_one({"user_id": user_id, "balance": 0, "referred_by": referrer_id})
@@ -175,5 +174,5 @@ def invite(message):
     link = f"https://t.me/{bot_info.username}?start={message.from_user.id}"
     bot.send_message(message.chat.id, f"\U0001F465 **လူခေါ်ငွေရှာ**\n\n\U0001F517 Link: `{link}`", parse_mode="Markdown")
 
-print("Bot is running on Render with MongoDB and Port Fix...")
+print("Bot is running with MongoDB and Port Fix...")
 bot.infinity_polling()
