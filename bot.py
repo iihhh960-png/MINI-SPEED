@@ -4,12 +4,13 @@ import psycopg2
 import time
 import threading 
 import os
-import requests  # ping ဖို့အတွက် ထည့်ရပါမယ်
+import requests
+import pytz
 from flask import Flask 
 from telebot import types
 from datetime import datetime
 
-# --- WEB SERVER FOR RENDER WEB SERVICE ---
+# --- WEB SERVER ---
 app = Flask('')
 
 @app.route('/')
@@ -20,23 +21,19 @@ def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-# --- BOT ကို အမြဲနိုးနေအောင်လုပ်ပေးမည့် Function ---
 def keep_alive():
     while True:
         try:
-            # ဤနေရာတွင် သင်၏ Render URL ကို ထည့်ပေးပါ (ဥပမာ- https://your-app.onrender.com)
-            # URL မရှိသေးပါက home page ကို ping နေပါမည်
             requests.get("http://0.0.0.0:8080")
         except:
             pass
-        time.sleep(300) # ၅ မိနစ်တစ်ခါ
+        time.sleep(300)
 
 # --- CONFIGURATION ---
 API_TOKEN = '8132455544:AAGzWeggLonfbu8jZ5wUZfcoRTwv9atAj24'
 ADMIN_ID = 8062953746
 WITHDRAW_CHANNEL = -1003804050982  
 
-# --- DATABASE CONNECTION ---
 DB_URI = "postgresql://postgres.yoiiszudtnksoeytovrs:UN03LRVCMc1Vx3Uk@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
 
 CHANNELS = [-1003628384777, -1003882533307, -1003804050982]
@@ -44,13 +41,16 @@ CHANNEL_LINKS = ["https://t.me/JoKeR_FaN1", "https://t.me/raw_myid_hack_channel"
 MISSION_CHANNELS = [-1003874895457, -1003821835937, -1003701360564]
 MISSION_LINKS = ["https://t.me/outline_vpn_sell", "https://t.me/singal_ch", "https://t.me/lottery_and_slot_channel"]
 
-REFER_REWARD = 50  
+# --- REWARD SETTINGS ---
+NEW_USER_REWARD = 100  # ဖိတ်ခေါ်ခံရသူ ရရှိမည့်ပမာဏ
+REFER_REWARD = 50      # ဖိတ်ခေါ်သူ ရရှိမည့်ပမာဏ
 DAILY_REWARD = 20  
-MISSION_REWARD = 30 
+MISSION_REWARD = 50    # Mission လုပ်လျှင် 50 Ks
 MIN_WITHDRAW = 500 
 
-# threaded=True ထည့်ခြင်းက တုံ့ပြန်မှု ပိုမြန်စေသည်
-bot = telebot.TeleBot(API_TOKEN, threaded=True, num_threads=10)
+# User အများအပြားအတွက် Thread ပမာဏ တိုးမြှင့်ထားသည်
+bot = telebot.TeleBot(API_TOKEN, threaded=True, num_threads=50)
+mm_tz = pytz.timezone('Asia/Yangon')
 
 # --- DATABASE SETUP ---
 def init_db():
@@ -142,7 +142,7 @@ def broadcast(message):
         try:
             bot.send_message(user[0], msg_text)
             success += 1
-            time.sleep(0.05) # broadcast ပိုမြန်စေရန်
+            time.sleep(0.05) 
         except: pass
     bot.send_message(ADMIN_ID, f"\u2705 စုစုပေါင်း User {success} ယောက်ကို ပို့ပြီးပါပြီ။")
 
@@ -205,12 +205,17 @@ def verify_join(message):
         cursor = conn.cursor()
         cursor.execute("SELECT referred_by, is_rewarded FROM users WHERE user_id=%s", (user_id,))
         res = cursor.fetchone()
-        if res and res[0] != 0 and res[1] == 0:
-            cursor.execute("UPDATE users SET balance = balance + %s WHERE user_id = %s", (REFER_REWARD, res[0]))
-            cursor.execute("UPDATE users SET is_rewarded = 1 WHERE user_id = %s", (user_id,))
+        
+        # Reward Logic Update: ဖိတ်ခံရသူ 100 Ks ၊ ဖိတ်သူ 50 Ks
+        if res and res[1] == 0:
+            cursor.execute("UPDATE users SET balance = balance + %s, is_rewarded = 1 WHERE user_id = %s", (NEW_USER_REWARD, user_id))
+            if res[0] != 0:
+                cursor.execute("UPDATE users SET balance = balance + %s WHERE user_id = %s", (REFER_REWARD, res[0]))
+                try: bot.send_message(res[0], f"\u2705 သင်ဖိတ်ခေါ်သူ Join သဖြင့် {REFER_REWARD} Ks ရပါပြီ။")
+                except: pass
             conn.commit()
-            try: bot.send_message(res[0], f"\u2705 သင်ဖိတ်ခေါ်သူ Join သဖြင့် {REFER_REWARD} Ks ရပါပြီ။")
-            except: pass
+            bot.send_message(user_id, f"\U0001F389 Join မှုအတွက် {NEW_USER_REWARD} Ks လက်ဆောင်ရပါပြီ။")
+            
         conn.close()
         bot.send_message(user_id, "\u2705 Join ထားတာ မှန်ကန်ပါတယ်!", reply_markup=get_main_menu())
     else:
@@ -227,7 +232,6 @@ def balance(message):
     cursor.execute("SELECT COUNT(*) FROM users WHERE referred_by=%s", (user_id,))
     refer_count = cursor.fetchone()[0]
     
-    # စုစုပေါင်းအသုံးပြုသူအရေအတွက်ယူရန်
     cursor.execute("SELECT COUNT(*) FROM users")
     total_users = cursor.fetchone()[0]
     conn.close()
@@ -243,7 +247,7 @@ def daily(message):
     cursor.execute("SELECT last_date FROM daily_bonus WHERE user_id=%s", (user_id,))
     data = cursor.fetchone()
     
-    cooldown = 86400 # ၂၄ နာရီ
+    cooldown = 86400 
     
     if data is None or (now - int(data[0])) >= cooldown:
         if data is None: cursor.execute("INSERT INTO daily_bonus (user_id, last_date) VALUES (%s, %s)", (user_id, str(now)))
@@ -252,10 +256,8 @@ def daily(message):
         conn.commit()
         bot.send_message(user_id, f"\U0001F389 Bonus {DAILY_REWARD} Ks ရပါပြီ။")
     else: 
-        # ကျန်ရှိချိန်တွက်ချက်ခြင်း
         seconds_left = cooldown - (now - int(data[0]))
-        hours = seconds_left // 3600
-        minutes = (seconds_left % 3600) // 60
+        hours, minutes = seconds_left // 3600, (seconds_left % 3600) // 60
         bot.send_message(user_id, f"\u231B ၂၄ နာရီ မပြည့်သေးပါ။\n\n\u23F3 ကျန်ရှိချိန် - {hours} နာရီ {minutes} မိနစ်")
     conn.close()
 
@@ -329,14 +331,14 @@ def wd_final(message, method, info):
         conn.commit()
         username = f"@{message.from_user.username}" if message.from_user.username else "No Username"
         
-        # --- ပြင်ဆင်ထားသော Withdraw Log ပုံစံသစ် ---
+        now_mm = datetime.now(mm_tz).strftime('%d/%m/%Y %H:%M')
         withdraw_log = (
             f"\U0001F514 **ငွေထုတ်တောင်းဆိုမှု**\n\n"
             f"\U0001F464 Username: {username} (`{message.from_user.id}`)\n"
             f"\U0001F4B3 Method: {method}\n"
             f"\U0001F4B5 Amount: {amt} Ks\n"
             f"\u2139\uFE0F Info: `{info}`\n\n"
-            f"\U0001F4C5 Date: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            f"\U0001F4C5 Date: {now_mm} (MM Time)"
         )
         
         try:
@@ -354,16 +356,14 @@ def back(message): bot.send_message(message.chat.id, "\U0001F3E0 Main Menu", rep
 if __name__ == "__main__":
     init_db()
     
-    # Web server run ခြင်း
     t1 = threading.Thread(target=run_flask)
     t1.daemon = True
     t1.start()
     
-    # Bot ကို အိပ်မပျော်အောင် ping နေမည့် function run ခြင်း
     t2 = threading.Thread(target=keep_alive)
     t2.daemon = True
     t2.start()
     
-    print("Bot is starting...")
-    # polling timeout ကို လျှော့ချထားသည်
+    print("Bot is starting with optimized speed...")
+    # polling timeout ပြင်ဆင်ခြင်း
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
