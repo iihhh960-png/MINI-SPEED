@@ -25,7 +25,7 @@ WITHDRAW_CHANNEL = -1003804050982
 
 # --- IMPORTANT: SUPABASE CONNECTION (IPv4 Compatible) ---
 # [YOUR-PASSWORD] နေရာမှာ သင်သတ်မှတ်ထားတဲ့ Database Password ကို အမှန်ထည့်ပေးပါ
-DB_URI = "postgresql://postgres.yoiiszudtnksoeytovrs:[F9jx8BBkihsLl2t4]@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
+DB_URI = "postgresql://postgres.yoiiszudtnksoeytovrs:[UN03LRVCMc1Vx3Uk]@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
 
 CHANNELS = [-1003628384777, -1003882533307, -1003804050982]
 CHANNEL_LINKS = ["https://t.me/JoKeR_FaN1", "https://t.me/raw_myid_hack_channel", "https://t.me/mini_speed_bot"]
