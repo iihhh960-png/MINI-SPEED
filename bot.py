@@ -8,7 +8,7 @@ from flask import Flask
 from telebot import types
 from datetime import datetime
 
-# --- WEB SERVER FOR RENDER WEB SERVICE ---
+# --- WEB SERVER FOR RENDER (CRITICAL FOR LIVE STATUS) ---
 app = Flask('')
 
 @app.route('/')
@@ -16,12 +16,14 @@ def home():
     return "Bot is Running!"
 
 def run_flask():
+    # Render သည် 8080 ကို default ပေးလေ့ရှိသော်လည်း PORT environment ကို သုံးခြင်းက ပိုစိတ်ချရသည်
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
 # --- CONFIGURATION ---
 API_TOKEN = '8132455544:AAGzWeggLonfbu8jZ5wUZfcoRTwv9atAj24'
 ADMIN_ID = 8062953746
+# ငွေထုတ်တောင်းဆိုမှု ပို့ရမည့် Channel ID
 WITHDRAW_CHANNEL = -1003804050982  
 
 # --- DATABASE CONNECTION ---
@@ -72,120 +74,35 @@ def is_joined(user_id, channel_list):
 def get_channel_inline_buttons(links):
     markup = types.InlineKeyboardMarkup(row_width=1)
     for i, link in enumerate(links, 1):
-        markup.add(types.InlineKeyboardButton(f"\U0001F517 Join Channel {i}", url=link))
+        markup.add(types.InlineKeyboardButton(f" Join Channel {i}", url=link))
     return markup
 
 def get_join_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("\u2705 Join ပြီးပါပြီ")
+    markup.add(" Join ပြီးပါပြီ")
     return markup
 
 def get_main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    markup.add("\U0001F4B0 လက်ကျန်စစ်ရန်", "\U0001F465 လူခေါ်ငွေရှာ")
-    markup.add("\U0001F3E6 Ngwe Thout Ran", "\U0001F3AF Missions")
-    markup.add("\U0001F381 နေ့စဉ်ဘောနပ်စ်")
+    markup.add(" လက်ကျန်စစ်ရန်", " လူခေါ်ငွေရှာ")
+    markup.add(" Ngwe Thout Ran", " Missions")
+    markup.add(" နေ့စဉ်ဘောနပ်စ်")
     return markup
 
 def get_withdraw_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    markup.add("\U0001F9E7 KPay", "\U0001F9E7 WavePay")
-    markup.add("\U0001F4F2 Phone Bill")
-    markup.add("\U0001F519 Back to Menu")
+    markup.add(" KPay", " WavePay")
+    markup.add(" Phone Bill")
+    markup.add(" Back to Menu")
     return markup
 
 # --- MIDDLEWARE: Channel Join စစ်ဆေးခြင်း ---
 @bot.message_handler(func=lambda message: not is_joined(message.from_user.id, CHANNELS))
 def force_join(message):
     user_id = message.from_user.id
-    if user_id == ADMIN_ID: return False 
-
-    text = "မင်္ဂလာပါ \U0001F64F\n\nBot ကိုအသုံးပြုရန် အောက်ပါ Channel များကို အရင် Join ပေးပါ။\nJoin ပြီးမှသာ ငွေရှာလို့ရပါမည်။"
+    text = "မင်္ဂလာပါ 🙏\n\nBot ကိုအသုံးပြုရန် အောက်ပါ Channel များကို အရင် Join ပေးပါ။\nJoin ပြီးမှသာ ငွေရှာလို့ရပါမည်။"
     bot.send_message(user_id, text, reply_markup=get_join_keyboard())
-    bot.send_message(user_id, "\U0001F4E2 Channel များ ", reply_markup=get_channel_inline_buttons(CHANNEL_LINKS))
-
-# --- ADMIN PANEL COMMANDS ---
-@bot.message_handler(commands=['admin'])
-def admin_panel(message):
-    if message.from_user.id != ADMIN_ID: return
-    text = (
-        "\U0001F468\u200D\u2696\ufe0f **Admin Control Panel**\n\n"
-        "\U0001F4E2 `/broadcast [စာသား]` - အားလုံးကို Message ပို့ရန်\n"
-        "\U0001F4B5 `/addbalance [user_id] [ပမာဏ]` - ပိုက်ဆံထည့်ပေးရန်\n"
-        "\U0001F4CA `/stats` - Bot အခြေအနေ စာရင်းကြည့်ရန်\n"
-        "\U0001F4E3 `/open_withdraw` - Channel ထဲသို့ ငွေထုတ်စနစ်ဖွင့်ကြောင်း အသိပေးရန်"
-    )
-    bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
-
-# --- အစမ်းစာပို့ရန် Command (Admin သီးသန့်) ---
-@bot.message_handler(commands=['open_withdraw'])
-def open_withdraw_announce(message):
-    if message.from_user.id != ADMIN_ID: return
-    announce_text = (
-        "📢 **သတင်းကောင်း** 📢\n\n"
-        " ⏰ယခုအချိန်မှစ၍ ငွေထုတ်စနစ် စတင်ပါပြီ။\n"
-        " 💸အနည်းဆုံး 500 Ks ပြည့်သူများ ထုတ်ယူနိုင်ပါပြီ။\n\n"
-        " ✅စိတ်ချစွာ ငွေရှာနိုင်ပါသည်။"
-    )
-    try:
-        bot.send_message(WITHDRAW_CHANNEL, announce_text, parse_mode="Markdown")
-        bot.send_message(ADMIN_ID, "✅ Channel ထဲသို့ အစမ်းစာ ပို့ပြီးပါပြီ။")
-    except Exception as e:
-        bot.send_message(ADMIN_ID, f"❌ Error: {e}")
-
-@bot.message_handler(commands=['broadcast'])
-def broadcast(message):
-    if message.from_user.id != ADMIN_ID: return
-    msg_text = message.text.replace("/broadcast ", "")
-    if not msg_text or msg_text == "/broadcast": 
-        bot.send_message(ADMIN_ID, "စာသားထည့်ပါဦးဗျ။ ဥပမာ- `/broadcast မင်္ဂလာပါ`")
-        return
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id FROM users")
-    users = cursor.fetchall()
-    conn.close()
-    
-    success = 0
-    for user in users:
-        try:
-            bot.send_message(user[0], msg_text)
-            success += 1
-            time.sleep(0.1) 
-        except: pass
-    bot.send_message(ADMIN_ID, f"\u2705 စုစုပေါင်း User {success} ယောက်ကို ပို့ပြီးပါပြီ။")
-
-@bot.message_handler(commands=['addbalance'])
-def add_balance(message):
-    if message.from_user.id != ADMIN_ID: return
-    try:
-        args = message.text.split()
-        target_id, amount = int(args[1]), int(args[2])
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE users SET balance = balance + %s WHERE user_id = %s", (amount, target_id))
-        conn.commit()
-        conn.close()
-        bot.send_message(ADMIN_ID, f"\u2705 User ID {target_id} ထံသို့ {amount} Ks ထည့်ပေးလိုက်ပါပြီ။")
-        bot.send_message(target_id, f"\U0001F389 Admin က သင့်ထံသို့ {amount} Ks ထည့်ပေးလိုက်ပါသည်။")
-    except: 
-        bot.send_message(ADMIN_ID, "\u274C အသုံးပြုပုံမှားနေသည်။ \n`/addbalance [user_id] [amount]`")
-
-@bot.message_handler(commands=['stats'])
-def stats(message):
-    if message.from_user.id != ADMIN_ID: return
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM users")
-        total_users = cursor.fetchone()[0]
-        cursor.execute("SELECT SUM(balance) FROM users")
-        total_balance = cursor.fetchone()[0] or 0
-        conn.close()
-        bot.send_message(ADMIN_ID, f"\U0001F4CA **Bot Stats**\n\n\U0001F464 စုစုပေါင်းအသုံးပြုသူ: {total_users} ယောက်\n\U0001F4B0 စုစုပေါင်းပေးရမည့်ငွေ: {total_balance} Ks", parse_mode="Markdown")
-    except Exception as e:
-        bot.send_message(ADMIN_ID, f"Error: {e}")
+    bot.send_message(user_id, " Channel များ ", reply_markup=get_channel_inline_buttons(CHANNEL_LINKS))
 
 # --- USER HANDLERS ---
 @bot.message_handler(commands=['start'])
@@ -207,9 +124,9 @@ def start(message):
         conn.close()
     except: pass
 
-    bot.send_message(user_id, "\U0001F3E0 Main Menu", reply_markup=get_main_menu())
+    bot.send_message(user_id, " Main Menu", reply_markup=get_main_menu())
 
-@bot.message_handler(func=lambda m: m.text == "\u2705 Join ပြီးပါပြီ")
+@bot.message_handler(func=lambda m: m.text == " Join ပြီးပါပြီ")
 def verify_join(message):
     user_id = message.from_user.id
     if is_joined(user_id, CHANNELS):
@@ -221,14 +138,14 @@ def verify_join(message):
             cursor.execute("UPDATE users SET balance = balance + %s WHERE user_id = %s", (REFER_REWARD, res[0]))
             cursor.execute("UPDATE users SET is_rewarded = 1 WHERE user_id = %s", (user_id,))
             conn.commit()
-            try: bot.send_message(res[0], f"\u2705 သင်ဖိတ်ခေါ်သူ Join သဖြင့် {REFER_REWARD} Ks ရပါပြီ။")
+            try: bot.send_message(res[0], f" သင်ဖိတ်ခေါ်သူ Join သဖြင့် {REFER_REWARD} Ks ရပါပြီ။")
             except: pass
         conn.close()
-        bot.send_message(user_id, "\u2705 Join ထားတာ မှန်ကန်ပါတယ်!", reply_markup=get_main_menu())
+        bot.send_message(user_id, " Join ထားတာ မှန်ကန်ပါတယ်!", reply_markup=get_main_menu())
     else:
-        bot.send_message(user_id, "\u26A0 မ Join ရသေးပါ။ အကုန် Join ပါ။", reply_markup=get_channel_inline_buttons(CHANNEL_LINKS))
+        bot.send_message(user_id, " မ Join ရသေးပါ။ အကုန် Join ပါ။", reply_markup=get_channel_inline_buttons(CHANNEL_LINKS))
 
-@bot.message_handler(func=lambda m: m.text == "\U0001F4B0 လက်ကျန်စစ်ရန်")
+@bot.message_handler(func=lambda m: m.text == " လက်ကျန်စစ်ရန်")
 def balance(message):
     user_id = message.from_user.id
     conn = get_db_connection()
@@ -239,9 +156,9 @@ def balance(message):
     cursor.execute("SELECT COUNT(*) FROM users WHERE referred_by=%s", (user_id,))
     refer_count = cursor.fetchone()[0]
     conn.close()
-    bot.send_message(user_id, f"\U0001F4CA **Account Info**\n\n\U0001F4B0 လက်ကျန်: {bal} Ks\n\U0001F465 ဖိတ်ခေါ်သူ: {refer_count} ယောက်", parse_mode="Markdown")
+    bot.send_message(user_id, f" **Account Info**\n\n လက်ကျန်: {bal} Ks\n ဖိတ်ခေါ်သူ: {refer_count} ယောက်", parse_mode="Markdown")
 
-@bot.message_handler(func=lambda m: m.text == "\U0001F381 နေ့စဉ်ဘောနပ်စ်")
+@bot.message_handler(func=lambda m: m.text == " နေ့စဉ်ဘောနပ်စ်")
 def daily(message):
     user_id = message.from_user.id
     now = int(time.time())
@@ -254,18 +171,18 @@ def daily(message):
         else: cursor.execute("UPDATE daily_bonus SET last_date=%s WHERE user_id=%s", (str(now), user_id))
         cursor.execute("UPDATE users SET balance = balance + %s WHERE user_id = %s", (DAILY_REWARD, user_id))
         conn.commit()
-        bot.send_message(user_id, f"\U0001F389 Bonus {DAILY_REWARD} Ks ရပါပြီ။")
-    else: bot.send_message(user_id, "\u231B ၂၄ နာရီ မပြည့်သေးပါ။")
+        bot.send_message(user_id, f" Bonus {DAILY_REWARD} Ks ရပါပြီ။")
+    else: bot.send_message(user_id, " ၂၄ နာရီ မပြည့်သေးပါ။")
     conn.close()
 
-@bot.message_handler(func=lambda m: m.text == "\U0001F3AF Missions")
+@bot.message_handler(func=lambda m: m.text == " Missions")
 def mission_start(message):
     user_id = message.from_user.id
     markup = types.InlineKeyboardMarkup(row_width=1)
     for i, link in enumerate(MISSION_LINKS, 1):
-        markup.add(types.InlineKeyboardButton(f"\U0001F517 Join Mission {i}", url=link))
-    markup.add(types.InlineKeyboardButton("\u2705 စစ်ဆေးမည်", callback_data="verify_mission"))
-    bot.send_message(user_id, f"\U0001F3AF **Missions**\nJoin ပါက {MISSION_REWARD} Ks ရမည်။", reply_markup=markup, parse_mode="Markdown")
+        markup.add(types.InlineKeyboardButton(f" Join Mission {i}", url=link))
+    markup.add(types.InlineKeyboardButton(" စစ်ဆေးမည်", callback_data="verify_mission"))
+    bot.send_message(user_id, f" **Missions**\nJoin ပါက {MISSION_REWARD} Ks ရမည်။", reply_markup=markup, parse_mode="Markdown")
 
 @bot.callback_query_handler(func=lambda call: call.data == "verify_mission")
 def verify_mission_callback(call):
@@ -280,16 +197,16 @@ def verify_mission_callback(call):
             cursor.execute("INSERT INTO missions (user_id) VALUES (%s)", (user_id,))
             cursor.execute("UPDATE users SET balance = balance + %s WHERE user_id = %s", (MISSION_REWARD, user_id))
             conn.commit()
-            bot.edit_message_text(f"\u2705 {MISSION_REWARD} Ks ရပါပြီ။", call.message.chat.id, call.message.message_id)
+            bot.edit_message_text(f" {MISSION_REWARD} Ks ရပါပြီ။", call.message.chat.id, call.message.message_id)
         conn.close()
-    else: bot.answer_callback_query(call.id, "\u26A0 မ Join ရသေးပါ။", show_alert=True)
+    else: bot.answer_callback_query(call.id, " မ Join ရသေးပါ။", show_alert=True)
 
-@bot.message_handler(func=lambda m: m.text == "\U0001F465 လူခေါ်ငွေရှာ")
+@bot.message_handler(func=lambda m: m.text == " လူခေါ်ငွေရှာ")
 def invite(message):
     link = f"https://t.me/{bot.get_me().username}?start={message.from_user.id}"
-    bot.send_message(message.chat.id, f"\U0001F465 **ဖိတ်ခေါ်လင့်ခ်:**\n`{link}`", parse_mode="Markdown")
+    bot.send_message(message.chat.id, f" **ဖိတ်ခေါ်လင့်ခ်:**\n`{link}`", parse_mode="Markdown")
 
-@bot.message_handler(func=lambda m: m.text == "\U0001F3E6 Ngwe Thout Ran")
+@bot.message_handler(func=lambda m: m.text == " Ngwe Thout Ran")
 def withdraw_start(message):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -297,10 +214,10 @@ def withdraw_start(message):
     bal = cursor.fetchone()[0]
     conn.close()
     if bal >= MIN_WITHDRAW:
-        bot.send_message(message.chat.id, f"\U0001F3E6 လက်ကျန်: {bal} Ks", reply_markup=get_withdraw_menu())
-    else: bot.send_message(message.chat.id, f"\u274C အနည်းဆုံး {MIN_WITHDRAW} Ks လိုပါသည်။")
+        bot.send_message(message.chat.id, f" လက်ကျန်: {bal} Ks", reply_markup=get_withdraw_menu())
+    else: bot.send_message(message.chat.id, f" အနည်းဆုံး {MIN_WITHDRAW} Ks လိုပါသည်။")
 
-@bot.message_handler(func=lambda m: m.text in ["\U0001F9E7 KPay", "\U0001F9E7 WavePay", "\U0001F4F2 Phone Bill"])
+@bot.message_handler(func=lambda m: m.text in [" KPay", " WavePay", " Phone Bill"])
 def wd_info(message):
     msg = bot.send_message(message.chat.id, "ဖုန်းနံပါတ် ပေးပို့ပါ။", reply_markup=types.ReplyKeyboardRemove())
     bot.register_next_step_handler(msg, wd_amount, message.text)
@@ -311,7 +228,7 @@ def wd_amount(message, method):
 
 def wd_final(message, method, info):
     if not message.text.isdigit():
-        bot.send_message(message.chat.id, "\u274C ဂဏန်းသာ ရိုက်ပါ။", reply_markup=get_main_menu())
+        bot.send_message(message.chat.id, " ဂဏန်းသာ ရိုက်ပါ။", reply_markup=get_main_menu())
         return
     amt = int(message.text)
     conn = get_db_connection()
@@ -323,7 +240,6 @@ def wd_final(message, method, info):
         cursor.execute("UPDATE users SET balance = balance - %s WHERE user_id = %s", (amt, message.from_user.id))
         conn.commit()
         
-        # --- Withdraw Channel ထဲကို ပို့မည့် စာတစ်ကြောင်းတည်း ပုံစံ ---
         username = f"@{message.from_user.username}" if message.from_user.username else "No Username"
         withdraw_log = (
             f" **ငွေထုတ်ယူမှုအသစ်**\n"
@@ -335,26 +251,35 @@ def wd_final(message, method, info):
         )
         
         bot.send_message(WITHDRAW_CHANNEL, withdraw_log, parse_mode="Markdown")
-        bot.send_message(message.chat.id, "\u2705 တောင်းဆိုမှု တင်ပြီးပါပြီ။ Admin မှ မကြာမီ လွှဲပေးပါမည်။", reply_markup=get_main_menu())
+        bot.send_message(message.chat.id, " တောင်းဆိုမှု တင်ပြီးပါပြီ။ Admin မှ မကြာမီ လွှဲပေးပါမည်။", reply_markup=get_main_menu())
     else: 
-        bot.send_message(message.chat.id, "\u274C လက်ကျန်မလောက်ပါ။", reply_markup=get_main_menu())
+        bot.send_message(message.chat.id, " လက်ကျန်မလောက်ပါ။", reply_markup=get_main_menu())
     conn.close()
 
-@bot.message_handler(func=lambda m: m.text == "\U0001F519 Back to Menu")
-def back(message): bot.send_message(message.chat.id, "\U0001F3E0 Main Menu", reply_markup=get_main_menu())
+@bot.message_handler(func=lambda m: m.text == " Back to Menu")
+def back(message): bot.send_message(message.chat.id, " Main Menu", reply_markup=get_main_menu())
 
 # --- BOT STARTING ---
 if __name__ == "__main__":
     init_db()
+    
+    # 1. Start Flask in background thread
     t = threading.Thread(target=run_flask)
     t.daemon = True
     t.start()
     
     print("Bot is starting...")
-    # Admin ဆီကို Bot စဖွင့်ပြီဖြစ်ကြောင်း စမ်းသပ်စာပို့ခြင်း
+    
+    # 2. Wait a second for network stability
+    time.sleep(2)
+    
+    # 3. စမ်းသပ်စာ ပို့ခြင်း (Channel သို့)
     try:
-        bot.send_message(ADMIN_ID, " Bot စနစ် စတင်လည်ပတ်ပါပြီ။")
-    except:
-        pass
+        test_msg = " **Mini Speed Bot Online!**\n\nBot စနစ် စတင်လည်ပတ်နေပြီဖြစ်သည်။ စာစမ်းသပ်မှု အောင်မြင်ပါသည်။"
+        bot.send_message(WITHDRAW_CHANNEL, test_msg, parse_mode="Markdown")
+        print("Initial test message sent to channel!")
+    except Exception as e:
+        print(f"Failed to send test message: {e}")
         
+    # 4. Start Polling
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
