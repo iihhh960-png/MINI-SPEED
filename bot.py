@@ -10,7 +10,7 @@ from flask import Flask
 from telebot import types
 from datetime import datetime
 
-# --- WEB SERVER (FIXED FOR RENDER) ---
+# --- WEB SERVER ---
 app = Flask('')
 
 @app.route('/')
@@ -18,15 +18,12 @@ def home():
     return "Bot is Running!"
 
 def run_flask():
-    # Render အတွက် Port ကို ပတ်ဝန်းကျင်ကနေ ဖတ်ခိုင်းရပါမယ်
-    # Default port ကို 10000 သတ်မှတ်ထားပါတယ်
-    port = int(os.environ.get("PORT", 10000)) 
+    port = int(os.environ.get("PORT", 10000)) # Render အတွက် Port 10000 ပြောင်းထားသည်
     app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
     while True:
         try:
-            # Localhost အစား Render URL ကို တိုက်ရိုက်ခေါ်ပေးခြင်းက ပိုစိတ်ချရပါတယ်
             requests.get("http://0.0.0.0:10000")
         except:
             pass
@@ -46,10 +43,10 @@ MISSION_LINKS = ["https://t.me/outline_vpn_sell", "https://t.me/singal_ch", "htt
 
 # --- REWARD SETTINGS ---
 NEW_USER_REWARD = 100  
-REFER_REWARD = 50      
+REFER_REWARD = 50      # တစ်ယောက်ခေါ် ၅၀ ကျပ် (ပြင်ဆင်ပြီး)
 DAILY_REWARD = 20  
 MISSION_REWARD = 50    
-MIN_WITHDRAW = 500 
+MIN_WITHDRAW = 1000    # ၁၀၀၀ ကျပ်မှ စထုတ်ရန် (ပြင်ဆင်ပြီး)
 
 bot = telebot.TeleBot(API_TOKEN, threaded=True, num_threads=50)
 mm_tz = pytz.timezone('Asia/Yangon')
@@ -68,7 +65,6 @@ def init_db():
         conn.commit()
         cursor.close()
         conn.close()
-        print("Database initialized successfully!")
     except Exception as e:
         print(f"Database error: {e}")
 
@@ -111,17 +107,16 @@ def get_withdraw_menu():
 def start(message):
     user_id = message.from_user.id
     
-    # --- CHANNEL JOIN CHECK AT START ---
-    if not is_joined(user_id, CHANNELS) and user_id != ADMIN_ID:
-        warning_text = (
-            "\u26A0\uFE0F **သတိပေးချက်**\n\n"
-            "Bot ကိုအသုံးပြုရန် အောက်ပါ Channel များကို အရင် Join ပေးပါ။\n"
-            "**Channel Join မထားပါက ငွေထုတ်ပေးမည်မဟုတ်ပါ။**"
-        )
-        bot.send_message(user_id, warning_text, reply_markup=get_join_keyboard(), parse_mode="Markdown")
-        bot.send_message(user_id, "\U0001F4E2 Channel များ Join ရန်", reply_markup=get_channel_inline_buttons(CHANNEL_LINKS))
-        return
+    # User အဟောင်းဖြစ်စေ၊ အသစ်ဖြစ်စေ /start နှိပ်ရင် Channel Join ဖို့ အမြဲအရင်ပြမည်
+    warning_text = (
+        "\u26A0\uFE0F **သတိပေးချက်**\n\n"
+        "Bot ကိုအသုံးပြုရန် အောက်ပါ Channel များကို အရင် Join ပေးပါ။\n"
+        "**Channel Join မထားပါက ငွေထုတ်ပေးမည်မဟုတ်ပါ။**"
+    )
+    bot.send_message(user_id, warning_text, reply_markup=get_join_keyboard(), parse_mode="Markdown")
+    bot.send_message(user_id, "\U0001F4E2 Channel များ Join ရန်", reply_markup=get_channel_inline_buttons(CHANNEL_LINKS))
 
+    # Referral system (Database ထဲမရှိသေးရင် ထည့်မယ်)
     referrer_id = 0
     if len(message.text.split()) > 1:
         ref_candidate = message.text.split()[1]
@@ -137,18 +132,18 @@ def start(message):
             conn.commit()
         conn.close()
     except: pass
-    
-    bot.send_message(user_id, "\U0001F3E0 **Main Menu**\n\nBot ကို စတင်အသုံးပြုနိုင်ပါပြီ။", reply_markup=get_main_menu(), parse_mode="Markdown")
 
 @bot.message_handler(func=lambda m: m.text == "\u2705 Join ပြီးပါပြီ")
 def verify_join(message):
     user_id = message.from_user.id
+    # ခလုတ်နှိပ်တဲ့အချိန်မှာ Channel join မ join တကယ်စစ်ဆေးသည်
     if is_joined(user_id, CHANNELS):
         conn = psycopg2.connect(DB_URI)
         cursor = conn.cursor()
         cursor.execute("SELECT referred_by, is_rewarded FROM users WHERE user_id=%s", (user_id,))
         res = cursor.fetchone()
         
+        # ပထမဆုံးအကြိမ် verify လုပ်တာဆိုရင် reward ပေးမည်
         if res and res[1] == 0:
             cursor.execute("UPDATE users SET balance = balance + %s, is_rewarded = 1 WHERE user_id = %s", (NEW_USER_REWARD, user_id))
             if res[0] != 0:
@@ -163,7 +158,18 @@ def verify_join(message):
     else:
         bot.send_message(user_id, "\u26A0\uFE0F မ Join ရသေးပါ။ အကုန် Join ပါ။\n**Channel Join မထားပါက ငွေထုတ်ပေးမည်မဟုတ်ပါ။**", reply_markup=get_channel_inline_buttons(CHANNEL_LINKS))
 
-# --- WITHDRAW HANDLER WITH JOIN CHECK ---
+@bot.message_handler(func=lambda m: m.text == "\U0001F465 လူခေါ်ငွေရှာ")
+def invite(message):
+    user_id = message.from_user.id
+    link = f"https://t.me/{bot.get_me().username}?start={user_id}"
+    invite_text = (
+        "\U0001F465 **လူခေါ် ငွေရှာ**\n\n"
+        f"\U0001F381* သင်ဖိတ်ခေါ်သောသူသည် Channel အားလုံး Join ပြီးပါက {REFER_REWARD} Ks သင့်ထဲသို့ထည့်ပေးမည်။\u2757*\n\n"
+        "\U0001F517 **သင့်ဖိတ်ခေါ်လင့် Link**\n"
+        f"`{link}`"
+    )
+    bot.send_message(message.chat.id, invite_text, parse_mode="Markdown")
+
 @bot.message_handler(func=lambda m: m.text == "\U0001F3E6 ငွေထုတ်ရန်")
 def withdraw_start(message):
     user_id = message.from_user.id
@@ -186,7 +192,7 @@ def withdraw_start(message):
     else: 
         bot.send_message(user_id, f"\u274C အနည်းဆုံး {MIN_WITHDRAW} Ks လိုပါသည်။ လက်ကျန် {bal} Ks သာရှိသည်။")
 
-# --- OTHER HANDLERS ---
+# --- အခြားအပိုင်းများ (မူလအတိုင်း) ---
 @bot.message_handler(func=lambda m: m.text == "\U0001F4B0 လက်ကျန်စစ်ရန်")
 def balance(message):
     user_id = message.from_user.id
@@ -195,9 +201,7 @@ def balance(message):
     res = cursor.fetchone(); bal = res[0] if res else 0
     cursor.execute("SELECT COUNT(*) FROM users WHERE referred_by=%s", (user_id,))
     refer_count = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM users")
-    total_users = cursor.fetchone()[0]
-    conn.close()
+    cursor.execute("SELECT COUNT(*) FROM users"); total_users = cursor.fetchone()[0]; conn.close()
     bot.send_message(user_id, f"\U0001F4CA **Account Info**\n\n\U0001F4B0 လက်ကျန်: {bal} Ks\n\U0001F465 ဖိတ်ခေါ်သူ: {refer_count} ယောက်\n\U0001F464 စုစုပေါင်းအသုံးပြုသူ: {total_users} ယောက်", parse_mode="Markdown")
 
 @bot.message_handler(func=lambda m: m.text == "\U0001F381 နေ့စဉ်ဘောနပ်စ်")
@@ -240,11 +244,6 @@ def verify_mission_callback(call):
             bot.edit_message_text(f"\u2705 {MISSION_REWARD} Ks ရပါပြီ။", call.message.chat.id, call.message.message_id)
         conn.close()
     else: bot.answer_callback_query(call.id, "\u26A0\uFE0F မ Join ရသေးပါ။", show_alert=True)
-
-@bot.message_handler(func=lambda m: m.text == "\U0001F465 လူခေါ်ငွေရှာ")
-def invite(message):
-    link = f"https://t.me/{bot.get_me().username}?start={message.from_user.id}"
-    bot.send_message(message.chat.id, f"\U0001F465 **ဖိတ်ခေါ်လင့်ခ်:**\n`{link}`", parse_mode="Markdown")
 
 @bot.message_handler(func=lambda m: m.text in ["\U0001F9E7 KPay", "\U0001F9E7 WavePay", "\U0001F4F2 Phone Bill"])
 def wd_info(message):
@@ -318,18 +317,9 @@ def stats(message):
     conn.close()
     bot.send_message(ADMIN_ID, f"\U0001F4CA **Bot Stats**\nUsers: {total_users}\nTotal Balance: {total_bal} Ks")
 
-# --- MAIN EXECUTION ---
 if __name__ == "__main__":
     init_db()
-    # threading ကို အရင် run ပါ
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
-    
-    keep_alive_thread = threading.Thread(target=keep_alive, daemon=True)
-    keep_alive_thread.start()
-    
-    # Flask တက်လာအောင် ခဏစောင့်ပေးခြင်းက Render Error ကင်းစေပါတယ်
-    time.sleep(2)
-    
+    threading.Thread(target=run_flask, daemon=True).start()
+    threading.Thread(target=keep_alive, daemon=True).start()
     print("Bot is starting...")
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
