@@ -19,7 +19,7 @@ def run_flask():
     app.run(host='0.0.0.0', port=8080)
 
 # --- CONFIGURATION ---
-API_TOKEN = '8132455544:AAEQ12hqHcmoec-X6LZhvPnMNfAl2h3ptvM'
+API_TOKEN = '8132455544:AAGzWeggLonfbu8jZ5wUZfcoRTwv9atAj24'
 ADMIN_ID = 8062953746
 WITHDRAW_CHANNEL = -1003804050982  
 
