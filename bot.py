@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 import telebot
-import psycopg2 # Supabase (PostgreSQL) အတွက် Library
+import psycopg2 
 import time
-import threading # Web Service အတွက်
-from flask import Flask # Web Service အတွက်
+import threading 
+import os
+from flask import Flask 
 from telebot import types
 from datetime import datetime
 
@@ -15,17 +16,16 @@ def home():
     return "Bot is Running!"
 
 def run_flask():
-    # Render အတွက် Port 8080 ကို သုံးထားပါတယ်
-    app.run(host='0.0.0.0', port=8080)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
 
 # --- CONFIGURATION ---
 API_TOKEN = '8132455544:AAGzWeggLonfbu8jZ5wUZfcoRTwv9atAj24'
 ADMIN_ID = 8062953746
 WITHDRAW_CHANNEL = -1003804050982  
 
-# --- IMPORTANT: SUPABASE CONNECTION (IPv4 Compatible) ---
-# [YOUR-PASSWORD] နေရာမှာ သင်သတ်မှတ်ထားတဲ့ Database Password ကို အမှန်ထည့်ပေးပါ
-DB_URI = "postgresql://postgres.yoiiszudtnksoeytovrs:[UN03LRVCMc1Vx3Uk]@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres"
+# --- DATABASE CONNECTION (Fixed to .com and Port 6543) ---
+DB_URI = "postgresql://postgres.yoiiszudtnksoeytovrs:UN03LRVCMc1Vx3Uk@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
 
 CHANNELS = [-1003628384777, -1003882533307, -1003804050982]
 CHANNEL_LINKS = ["https://t.me/JoKeR_FaN1", "https://t.me/raw_myid_hack_channel", "https://t.me/mini_speed_bot"]
@@ -39,9 +39,8 @@ MIN_WITHDRAW = 500
 
 bot = telebot.TeleBot(API_TOKEN)
 
-# --- DATABASE SETUP (SUPABASE) ---
+# --- DATABASE SETUP ---
 def get_db_connection():
-    # SSL Mode require ထည့်ထားမှ Render ကနေ Supabase ကို ချိတ်ဆက်မှု ပိုတည်ငြိမ်မှာပါ
     return psycopg2.connect(DB_URI)
 
 def init_db():
@@ -171,13 +170,15 @@ def start(message):
         if ref_candidate.isdigit() and int(ref_candidate) != user_id:
             referrer_id = int(ref_candidate)
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id FROM users WHERE user_id=%s", (user_id,))
-    if not cursor.fetchone():
-        cursor.execute("INSERT INTO users (user_id, balance, referred_by, is_rewarded) VALUES (%s, 0, %s, 0)", (user_id, referrer_id))
-        conn.commit()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM users WHERE user_id=%s", (user_id,))
+        if not cursor.fetchone():
+            cursor.execute("INSERT INTO users (user_id, balance, referred_by, is_rewarded) VALUES (%s, 0, %s, 0)", (user_id, referrer_id))
+            conn.commit()
+        conn.close()
+    except: pass
 
     if is_joined(user_id, CHANNELS):
         bot.send_message(user_id, "\U0001F3E0 Main Menu", reply_markup=get_main_menu())
@@ -309,13 +310,12 @@ def wd_final(message, method, info):
 @bot.message_handler(func=lambda m: m.text == "\U0001F519 Back to Menu")
 def back(message): bot.send_message(message.chat.id, "\U0001F3E0 Main Menu", reply_markup=get_main_menu())
 
-# --- BOT STARTING WITH WEB SERVICE ---
+# --- BOT STARTING ---
 if __name__ == "__main__":
     init_db()
-    # Web Server ကို Threading နဲ့ သီးသန့် Run ပါမယ် (Render Web Service အတွက်)
     t = threading.Thread(target=run_flask)
-    t.daemon = True # Bot ပိတ်ရင် Web server ပါ တစ်ခါတည်းပိတ်အောင်
+    t.daemon = True
     t.start()
     
-    print("Bot is starting with Supabase (Pooler Port 6543) & Web Service on Render...")
-    bot.infinity_polling()
+    print("Bot is starting with Fixed Config on Render...")
+    bot.infinity_polling(timeout=10, long_polling_timeout=5)
