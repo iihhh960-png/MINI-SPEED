@@ -10,7 +10,7 @@ from flask import Flask
 from telebot import types
 from datetime import datetime
 
-# --- WEB SERVER ---
+# --- WEB SERVER (FIXED FOR RENDER) ---
 app = Flask('')
 
 @app.route('/')
@@ -18,13 +18,16 @@ def home():
     return "Bot is Running!"
 
 def run_flask():
-    port = int(os.environ.get("PORT", 8080))
+    # Render အတွက် Port ကို ပတ်ဝန်းကျင်ကနေ ဖတ်ခိုင်းရပါမယ်
+    # Default port ကို 10000 သတ်မှတ်ထားပါတယ်
+    port = int(os.environ.get("PORT", 10000)) 
     app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
     while True:
         try:
-            requests.get("http://0.0.0.0:8080")
+            # Localhost အစား Render URL ကို တိုက်ရိုက်ခေါ်ပေးခြင်းက ပိုစိတ်ချရပါတယ်
+            requests.get("http://0.0.0.0:10000")
         except:
             pass
         time.sleep(300)
@@ -183,7 +186,7 @@ def withdraw_start(message):
     else: 
         bot.send_message(user_id, f"\u274C အနည်းဆုံး {MIN_WITHDRAW} Ks လိုပါသည်။ လက်ကျန် {bal} Ks သာရှိသည်။")
 
-# --- OTHER HANDLERS (UNMODIFIED) ---
+# --- OTHER HANDLERS ---
 @bot.message_handler(func=lambda m: m.text == "\U0001F4B0 လက်ကျန်စစ်ရန်")
 def balance(message):
     user_id = message.from_user.id
@@ -315,9 +318,18 @@ def stats(message):
     conn.close()
     bot.send_message(ADMIN_ID, f"\U0001F4CA **Bot Stats**\nUsers: {total_users}\nTotal Balance: {total_bal} Ks")
 
+# --- MAIN EXECUTION ---
 if __name__ == "__main__":
     init_db()
-    threading.Thread(target=run_flask, daemon=True).start()
-    threading.Thread(target=keep_alive, daemon=True).start()
+    # threading ကို အရင် run ပါ
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    
+    keep_alive_thread = threading.Thread(target=keep_alive, daemon=True)
+    keep_alive_thread.start()
+    
+    # Flask တက်လာအောင် ခဏစောင့်ပေးခြင်းက Render Error ကင်းစေပါတယ်
+    time.sleep(2)
+    
     print("Bot is starting...")
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
