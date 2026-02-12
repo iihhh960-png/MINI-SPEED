@@ -24,7 +24,7 @@ API_TOKEN = '8132455544:AAGzWeggLonfbu8jZ5wUZfcoRTwv9atAj24'
 ADMIN_ID = 8062953746
 WITHDRAW_CHANNEL = -1003804050982  
 
-# --- DATABASE CONNECTION (Fixed to .com and Port 6543) ---
+# --- DATABASE CONNECTION ---
 DB_URI = "postgresql://postgres.yoiiszudtnksoeytovrs:UN03LRVCMc1Vx3Uk@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
 
 CHANNELS = [-1003628384777, -1003882533307, -1003804050982]
@@ -69,15 +69,6 @@ def is_joined(user_id, channel_list):
         except: return False
     return True
 
-def check_membership(message):
-    user_id = message.from_user.id
-    if not is_joined(user_id, CHANNELS):
-        text = "မင်္ဂလာပါ \U0001F64F\n\nBot ကိုသုံးရန် အောက်ပါ Channel များကို အရင် Join ပေးပါ။\n\nJoin ပြီးလျှင် '\u2705 Join ပြီးပါပြီ' ကို နှိပ်ပါ။"
-        bot.send_message(user_id, text, reply_markup=get_join_keyboard())
-        bot.send_message(user_id, " \U0001F4E2 Channel များ ", reply_markup=get_channel_inline_buttons(CHANNEL_LINKS))
-        return False
-    return True
-
 def get_channel_inline_buttons(links):
     markup = types.InlineKeyboardMarkup(row_width=1)
     for i, link in enumerate(links, 1):
@@ -103,6 +94,32 @@ def get_withdraw_menu():
     markup.add("\U0001F519 Back to Menu")
     return markup
 
+# --- MIDDLEWARE: Channel Join အမြဲတမ်းစစ်ဆေးခြင်း နှင့် Admin ဆီ Alert ပို့ခြင်း ---
+@bot.message_handler(func=lambda message: not is_joined(message.from_user.id, CHANNELS))
+def force_join(message):
+    user_id = message.from_user.id
+    user_name = message.from_user.first_name
+    username = f"@{message.from_user.username}" if message.from_user.username else "No Username"
+    
+    if user_id == ADMIN_ID: return False 
+
+    # Admin ဆီသို့ Alert ပို့ရန် အပိုင်း
+    try:
+        alert_text = (
+            "\u26A0\ufe0f **Security Alert**\n\n"
+            "User တစ်ဦးသည် Channel မဝင်ဘဲ Bot ကို သုံးရန် ကြိုးစားနေပါသည်။\n"
+            f"\U0001F194 ID: `{user_id}`\n"
+            f"\U0001F464 Name: {user_name}\n"
+            f"\U0001F310 Username: {username}"
+        )
+        bot.send_message(ADMIN_ID, alert_text, parse_mode="Markdown")
+    except:
+        pass
+
+    text = "မင်္ဂလာပါ \U0001F64F\n\nBot ကိုအသုံးပြုရန် အောက်ပါ Channel များကို အရင် Join ပေးပါ။\nJoin ပြီးမှသာ ငွေရှာလို့ရပါမည်။"
+    bot.send_message(user_id, text, reply_markup=get_join_keyboard())
+    bot.send_message(user_id, " \U0001F4E2 Channel များ ", reply_markup=get_channel_inline_buttons(CHANNEL_LINKS))
+
 # --- ADMIN PANEL ---
 @bot.message_handler(commands=['admin'])
 def admin_panel(message):
@@ -114,51 +131,6 @@ def admin_panel(message):
         "\U0001F4CA /stats - စာရင်းကြည့်ရန်"
     )
     bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
-
-@bot.message_handler(commands=['broadcast'])
-def broadcast(message):
-    if message.from_user.id != ADMIN_ID: return
-    msg_text = message.text.replace("/broadcast ", "")
-    if not msg_text or msg_text == "/broadcast": return
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id FROM users")
-    users = cursor.fetchall()
-    conn.close()
-    success = 0
-    for user in users:
-        try:
-            bot.send_message(user[0], msg_text)
-            success += 1
-            time.sleep(0.1)
-        except: pass
-    bot.send_message(ADMIN_ID, f"\u2705 စုစုပေါင်း {success} ယောက်ကို ပို့ပြီးပါပြီ။")
-
-@bot.message_handler(commands=['addbalance'])
-def add_balance(message):
-    if message.from_user.id != ADMIN_ID: return
-    try:
-        args = message.text.split()
-        target_id, amount = int(args[1]), int(args[2])
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE users SET balance = balance + %s WHERE user_id = %s", (amount, target_id))
-        conn.commit()
-        conn.close()
-        bot.send_message(ADMIN_ID, f"\u2705 User {target_id} ကို {amount} Ks ထည့်ပြီးပါပြီ။")
-    except: bot.send_message(ADMIN_ID, "Error: /addbalance [id] [amount]")
-
-@bot.message_handler(commands=['stats'])
-def stats(message):
-    if message.from_user.id != ADMIN_ID: return
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM users")
-    total_users = cursor.fetchone()[0]
-    cursor.execute("SELECT SUM(balance) FROM users")
-    total_balance = cursor.fetchone()[0] or 0
-    conn.close()
-    bot.send_message(ADMIN_ID, f"\U0001F4CA **Bot Stats**\n\n\U0001F465 အသုံးပြုသူ: {total_users}\n\U0001F4B0 စုစုပေါင်းငွေ: {total_balance} Ks", parse_mode="Markdown")
 
 # --- USER HANDLERS ---
 @bot.message_handler(commands=['start'])
@@ -180,11 +152,7 @@ def start(message):
         conn.close()
     except: pass
 
-    if is_joined(user_id, CHANNELS):
-        bot.send_message(user_id, "\U0001F3E0 Main Menu", reply_markup=get_main_menu())
-    else:
-        bot.send_message(user_id, "မင်္ဂလာပါ \U0001F64F\nJoin ပေးပါဦး။", reply_markup=get_join_keyboard())
-        bot.send_message(user_id, " \U0001F4E2 Channel များ ", reply_markup=get_channel_inline_buttons(CHANNEL_LINKS))
+    bot.send_message(user_id, "\U0001F3E0 Main Menu", reply_markup=get_main_menu())
 
 @bot.message_handler(func=lambda m: m.text == "\u2705 Join ပြီးပါပြီ")
 def verify_join(message):
@@ -205,37 +173,59 @@ def verify_join(message):
     else:
         bot.send_message(user_id, "\u26A0 မ Join ရသေးပါ။ အကုန် Join ပါ။", reply_markup=get_channel_inline_buttons(CHANNEL_LINKS))
 
+# --- လက်ကျန်စစ်ရန် ---
 @bot.message_handler(func=lambda m: m.text == "\U0001F4B0 လက်ကျန်စစ်ရန်")
 def balance(message):
-    if not check_membership(message): return
+    user_id = message.from_user.id
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT balance FROM users WHERE user_id=%s", (message.from_user.id,))
-    bal = cursor.fetchone()[0]
+    cursor.execute("SELECT balance FROM users WHERE user_id=%s", (user_id,))
+    res = cursor.fetchone()
+    bal = res[0] if res else 0
+    cursor.execute("SELECT COUNT(*) FROM users WHERE referred_by=%s", (user_id,))
+    refer_count = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM users")
+    total_users = cursor.fetchone()[0]
     conn.close()
-    bot.send_message(message.chat.id, f"\U0001F4B0 **လက်ကျန်: {bal} Ks**", parse_mode="Markdown")
+    
+    info_text = (
+        "\U0001F4CA **Account Info**\n\n"
+        f"\U0001F4B0 လက်ကျန်: {bal} Ks\n"
+        f"\U0001F465 ဖိတ်ခေါ်ထားသူ: {refer_count} ယောက်\n"
+        f"\U0001F310 စုစုပေါင်းအသုံးပြုသူ: {total_users} ယောက်\n\n"
+        "\U0001F381 လူများများဖိတ်ခေါ်လေ ပိုက်ဆံပိုရလေပါပဲဗျာ!"
+    )
+    bot.send_message(message.chat.id, info_text, parse_mode="Markdown")
 
+# --- နေ့စဉ်ဘောနပ်စ် ---
 @bot.message_handler(func=lambda m: m.text == "\U0001F381 နေ့စဉ်ဘောနပ်စ်")
 def daily(message):
-    if not check_membership(message): return
     user_id = message.from_user.id
     now = int(time.time())
+    wait_time = 86400
+
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT last_date FROM daily_bonus WHERE user_id=%s", (user_id,))
     data = cursor.fetchone()
-    if data is None or (now - int(data[0])) >= 86400:
-        if data is None: cursor.execute("INSERT INTO daily_bonus (user_id, last_date) VALUES (%s, %s)", (user_id, str(now)))
-        else: cursor.execute("UPDATE daily_bonus SET last_date=%s WHERE user_id=%s", (str(now), user_id))
+
+    if data is None or (now - int(data[0])) >= wait_time:
+        if data is None: 
+            cursor.execute("INSERT INTO daily_bonus (user_id, last_date) VALUES (%s, %s)", (user_id, str(now)))
+        else: 
+            cursor.execute("UPDATE daily_bonus SET last_date=%s WHERE user_id=%s", (str(now), user_id))
         cursor.execute("UPDATE users SET balance = balance + %s WHERE user_id = %s", (DAILY_REWARD, user_id))
         conn.commit()
-        bot.send_message(user_id, f"\U0001F389 {DAILY_REWARD} Ks ရရှိပါပြီ။")
-    else: bot.send_message(user_id, "\u231B မနက်ဖြန်မှ ပြန်လာယူပါ။")
+        bot.send_message(user_id, f"\U0001F389 **Bonus {DAILY_REWARD} Ks ရရှိပါပြီ။**", parse_mode="Markdown")
+    else:
+        remaining = wait_time - (now - int(data[0]))
+        hours, minutes = remaining // 3600, (remaining % 3600) // 60
+        bot.send_message(user_id, f"\u231B **နေ့စဉ်ဘောနပ်စ်ကို ယူပြီးသားပါ။**\n\nပြန်ယူလို့ရမည့်အချိန်: {hours} နာရီ {minutes} မိနစ် \u2705", parse_mode="Markdown")
     conn.close()
 
+# --- MISSIONS ---
 @bot.message_handler(func=lambda m: m.text == "\U0001F3AF Missions")
 def mission_start(message):
-    if not check_membership(message): return
     user_id = message.from_user.id
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -264,15 +254,14 @@ def verify_mission_callback(call):
         bot.edit_message_text(f"\u2705 {MISSION_REWARD} Ks ရပါပြီ။", call.message.chat.id, call.message.message_id)
     else: bot.answer_callback_query(call.id, "\u26A0 Join ရန် ကျန်ပါသေးသည်။", show_alert=True)
 
+# --- INVITE & WITHDRAW ---
 @bot.message_handler(func=lambda m: m.text == "\U0001F465 လူခေါ်ငွေရှာ")
 def invite(message):
-    if not check_membership(message): return
     link = f"https://t.me/{bot.get_me().username}?start={message.from_user.id}"
     bot.send_message(message.chat.id, f"\U0001F465 **ဖိတ်ခေါ်လင့်ခ်:**\n`{link}`", parse_mode="Markdown")
 
 @bot.message_handler(func=lambda m: m.text == "\U0001F3E6 Ngwe Thout Ran")
 def withdraw_start(message):
-    if not check_membership(message): return
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT balance FROM users WHERE user_id=%s", (message.from_user.id,))
@@ -317,5 +306,5 @@ if __name__ == "__main__":
     t.daemon = True
     t.start()
     
-    print("Bot is starting with Fixed Config on Render...")
+    print("Bot is starting with Join Check & Admin Alert...")
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
