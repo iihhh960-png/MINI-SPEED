@@ -69,19 +69,16 @@ def is_joined(user_id, channel_list):
 def get_channel_inline_buttons(links):
     markup = types.InlineKeyboardMarkup(row_width=1)
     for i, link in enumerate(links, 1):
-        # 🔗 = \U0001F517
         markup.add(types.InlineKeyboardButton(f"\U0001F517 Join Channel {i}", url=link))
     return markup
 
 def get_join_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    # ✅ = \u2705
     markup.add("\u2705 Join ပြီးပါပြီ")
     return markup
 
 def get_main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    # 💰 = \U0001F4B0, 👥 = \U0001F465, 🏦 = \U0001F3E6, 🎯 = \U0001F3AF, 🎁 = \U0001F381
     markup.add("\U0001F4B0 လက်ကျန်စစ်ရန်", "\U0001F465 လူခေါ်ငွေရှာ")
     markup.add("\U0001F3E6 Ngwe Thout Ran", "\U0001F3AF Missions")
     markup.add("\U0001F381 နေ့စဉ်ဘောနပ်စ်")
@@ -89,7 +86,6 @@ def get_main_menu():
 
 def get_withdraw_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    # 🧧 = \U0001F9E7, 📱 = \U0001F4F2, 🔙 = \U0001F519
     markup.add("\U0001F9E7 KPay", "\U0001F9E7 WavePay")
     markup.add("\U0001F4F2 Phone Bill")
     markup.add("\U0001F519 Back to Menu")
@@ -100,8 +96,7 @@ def get_withdraw_menu():
 def force_join(message):
     user_id = message.from_user.id
     if user_id == ADMIN_ID: return False 
-    # 🙏 = \U0001F64F, 📢 = \U0001F4E2
-    text = "မင်္ဂလာပါ \U0001F64F\n\nBot ကိုအသုံးပြုရန် အောက်ပါ Channel များကို အရင် Join ပေးပါ။\nJoin ပြီးမှသာ ငွေရှာလို့ရပါမည်।"
+    text = "မင်္ဂလာပါ \U0001F64F\n\nBot ကိုအသုံးပြုရန် အောက်ပါ Channel များကို အရင် Join ပေးပါ။\nJoin ပြီးမှသာ ငွေရှာလို့ရပါမည်"
     bot.send_message(user_id, text, reply_markup=get_join_keyboard())
     bot.send_message(user_id, "\U0001F4E2 Channel များ ", reply_markup=get_channel_inline_buttons(CHANNEL_LINKS))
 
@@ -109,7 +104,6 @@ def force_join(message):
 @bot.message_handler(commands=['admin'])
 def admin_panel(message):
     if message.from_user.id != ADMIN_ID: return
-    # 👨‍⚖️ = \U0001F468\u200D\u2696\uFE0F
     text = (
         "\U0001F468\u200D\u2696\uFE0F **Admin Control Panel**\n\n"
         "\U0001F4E2 `/broadcast [စာသား]` - အားလုံးကို Message ပို့ရန်\n"
@@ -188,7 +182,6 @@ def start(message):
             conn.commit()
         conn.close()
     except: pass
-    # 🏠 = \U0001F3E0
     bot.send_message(user_id, "\U0001F3E0 Main Menu", reply_markup=get_main_menu())
 
 @bot.message_handler(func=lambda m: m.text == "\u2705 Join ပြီးပါပြီ")
@@ -208,7 +201,6 @@ def verify_join(message):
         conn.close()
         bot.send_message(user_id, "\u2705 Join ထားတာ မှန်ကန်ပါတယ်!", reply_markup=get_main_menu())
     else:
-        # ⚠️ = \u26A0
         bot.send_message(user_id, "\u26A0 မ Join ရသေးပါ။ အကုန် Join ပါ။", reply_markup=get_channel_inline_buttons(CHANNEL_LINKS))
 
 @bot.message_handler(func=lambda m: m.text == "\U0001F4B0 လက်ကျန်စစ်ရန်")
@@ -221,8 +213,13 @@ def balance(message):
     bal = res[0] if res else 0
     cursor.execute("SELECT COUNT(*) FROM users WHERE referred_by=%s", (user_id,))
     refer_count = cursor.fetchone()[0]
+    
+    # စုစုပေါင်းအသုံးပြုသူအရေအတွက်ယူရန်
+    cursor.execute("SELECT COUNT(*) FROM users")
+    total_users = cursor.fetchone()[0]
     conn.close()
-    bot.send_message(user_id, f"\U0001F4CA **Account Info**\n\n\U0001F4B0 လက်ကျန်: {bal} Ks\n\U0001F465 ဖိတ်ခေါ်သူ: {refer_count} ယောက်", parse_mode="Markdown")
+    
+    bot.send_message(user_id, f"\U0001F4CA **Account Info**\n\n\U0001F4B0 လက်ကျန်: {bal} Ks\n\U0001F465 ဖိတ်ခေါ်သူ: {refer_count} ယောက်\n\U0001F464 စုစုပေါင်းအသုံးပြုသူ: {total_users} ယောက်", parse_mode="Markdown")
 
 @bot.message_handler(func=lambda m: m.text == "\U0001F381 နေ့စဉ်ဘောနပ်စ်")
 def daily(message):
@@ -232,16 +229,21 @@ def daily(message):
     cursor = conn.cursor()
     cursor.execute("SELECT last_date FROM daily_bonus WHERE user_id=%s", (user_id,))
     data = cursor.fetchone()
-    if data is None or (now - int(data[0])) >= 86400:
+    
+    cooldown = 86400 # ၂၄ နာရီ
+    
+    if data is None or (now - int(data[0])) >= cooldown:
         if data is None: cursor.execute("INSERT INTO daily_bonus (user_id, last_date) VALUES (%s, %s)", (user_id, str(now)))
         else: cursor.execute("UPDATE daily_bonus SET last_date=%s WHERE user_id=%s", (str(now), user_id))
         cursor.execute("UPDATE users SET balance = balance + %s WHERE user_id = %s", (DAILY_REWARD, user_id))
         conn.commit()
-        # 🎉 = \U0001F389
         bot.send_message(user_id, f"\U0001F389 Bonus {DAILY_REWARD} Ks ရပါပြီ။")
     else: 
-        # ⏳ = \u231B
-        bot.send_message(user_id, "\u231B ၂၄ နာရီ မပြည့်သေးပါ။")
+        # ကျန်ရှိချိန်တွက်ချက်ခြင်း
+        seconds_left = cooldown - (now - int(data[0]))
+        hours = seconds_left // 3600
+        minutes = (seconds_left % 3600) // 60
+        bot.send_message(user_id, f"\u231B ၂၄ နာရီ မပြည့်သေးပါ။\n\n\u23F3 ကျန်ရှိချိန် - {hours} နာရီ {minutes} မိနစ်")
     conn.close()
 
 @bot.message_handler(func=lambda m: m.text == "\U0001F3AF Missions")
@@ -286,7 +288,6 @@ def withdraw_start(message):
     if bal >= MIN_WITHDRAW:
         bot.send_message(message.chat.id, f"\U0001F3E6 လက်ကျန်: {bal} Ks", reply_markup=get_withdraw_menu())
     else: 
-        # ❌ = \u274C
         bot.send_message(message.chat.id, f"\u274C အနည်းဆုံး {MIN_WITHDRAW} Ks လိုပါသည်။ လက်ကျန် {bal} Ks သာရှိသည်။")
 
 @bot.message_handler(func=lambda m: m.text in ["\U0001F9E7 KPay", "\U0001F9E7 WavePay", "\U0001F4F2 Phone Bill"])
@@ -314,15 +315,17 @@ def wd_final(message, method, info):
         cursor.execute("UPDATE users SET balance = balance - %s WHERE user_id = %s", (amt, message.from_user.id))
         conn.commit()
         username = f"@{message.from_user.username}" if message.from_user.username else "No Username"
-        # 🔔 = \U0001F514
+        
+        # --- ပြင်ဆင်ထားသော Withdraw Log ပုံစံသစ် ---
         withdraw_log = (
-            f"\U0001F514 **ငွေထုတ်ယူမှုအသစ်**\n"
-            f"User: {username} (`{message.from_user.id}`)\n"
-            f"ပမာဏ: {amt} Ks\n"
-            f"နည်းလမ်း: {method}\n"
-            f"နံပါတ်: `{info}`\n"
-            f"{datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            f"\U0001F514 **ငွေထုတ်တောင်းဆိုမှု**\n\n"
+            f"\U0001F464 Username: {username} (`{message.from_user.id}`)\n"
+            f"\U0001F4B3 Method: {method}\n"
+            f"\U0001F4B5 Amount: {amt} Ks\n"
+            f"\u2139\uFE0F Info: `{info}`\n\n"
+            f"\U0001F4C5 Date: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
         )
+        
         try:
             bot.send_message(WITHDRAW_CHANNEL, withdraw_log, parse_mode="Markdown")
             bot.send_message(message.chat.id, "\u2705 တောင်းဆိုမှု တင်ပြီးပါပြီ။ Admin မှ မကြာမီ လွှဲပေးပါမည်။", reply_markup=get_main_menu())
