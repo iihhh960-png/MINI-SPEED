@@ -4,6 +4,7 @@ import psycopg2
 import time
 import threading 
 import os
+import requests  # ping ဖို့အတွက် ထည့်ရပါမယ်
 from flask import Flask 
 from telebot import types
 from datetime import datetime
@@ -18,6 +19,17 @@ def home():
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
+
+# --- BOT ကို အမြဲနိုးနေအောင်လုပ်ပေးမည့် Function ---
+def keep_alive():
+    while True:
+        try:
+            # ဤနေရာတွင် သင်၏ Render URL ကို ထည့်ပေးပါ (ဥပမာ- https://your-app.onrender.com)
+            # URL မရှိသေးပါက home page ကို ping နေပါမည်
+            requests.get("http://0.0.0.0:8080")
+        except:
+            pass
+        time.sleep(300) # ၅ မိနစ်တစ်ခါ
 
 # --- CONFIGURATION ---
 API_TOKEN = '8132455544:AAGzWeggLonfbu8jZ5wUZfcoRTwv9atAj24'
@@ -37,7 +49,8 @@ DAILY_REWARD = 20
 MISSION_REWARD = 30 
 MIN_WITHDRAW = 500 
 
-bot = telebot.TeleBot(API_TOKEN)
+# threaded=True ထည့်ခြင်းက တုံ့ပြန်မှု ပိုမြန်စေသည်
+bot = telebot.TeleBot(API_TOKEN, threaded=True, num_threads=10)
 
 # --- DATABASE SETUP ---
 def init_db():
@@ -129,7 +142,7 @@ def broadcast(message):
         try:
             bot.send_message(user[0], msg_text)
             success += 1
-            time.sleep(0.1) 
+            time.sleep(0.05) # broadcast ပိုမြန်စေရန်
         except: pass
     bot.send_message(ADMIN_ID, f"\u2705 စုစုပေါင်း User {success} ယောက်ကို ပို့ပြီးပါပြီ။")
 
@@ -340,8 +353,17 @@ def back(message): bot.send_message(message.chat.id, "\U0001F3E0 Main Menu", rep
 
 if __name__ == "__main__":
     init_db()
-    t = threading.Thread(target=run_flask)
-    t.daemon = True
-    t.start()
+    
+    # Web server run ခြင်း
+    t1 = threading.Thread(target=run_flask)
+    t1.daemon = True
+    t1.start()
+    
+    # Bot ကို အိပ်မပျော်အောင် ping နေမည့် function run ခြင်း
+    t2 = threading.Thread(target=keep_alive)
+    t2.daemon = True
+    t2.start()
+    
     print("Bot is starting...")
-    bot.infinity_polling(timeout=20, long_polling_timeout=10)
+    # polling timeout ကို လျှော့ချထားသည်
+    bot.infinity_polling(timeout=10, long_polling_timeout=5)
