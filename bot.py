@@ -18,7 +18,7 @@ def home():
     return "Bot is Running!"
 
 def run_flask():
-    port = int(os.environ.get("PORT", 10000)) # Render အတွက် Port 10000 ပြောင်းထားသည်
+    port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
@@ -43,10 +43,10 @@ MISSION_LINKS = ["https://t.me/outline_vpn_sell", "https://t.me/singal_ch", "htt
 
 # --- REWARD SETTINGS ---
 NEW_USER_REWARD = 100  
-REFER_REWARD = 50      # တစ်ယောက်ခေါ် ၅၀ ကျပ် (ပြင်ဆင်ပြီး)
+REFER_REWARD = 50      
 DAILY_REWARD = 20  
 MISSION_REWARD = 50    
-MIN_WITHDRAW = 1000    # ၁၀၀၀ ကျပ်မှ စထုတ်ရန် (ပြင်ဆင်ပြီး)
+MIN_WITHDRAW = 1000    
 
 bot = telebot.TeleBot(API_TOKEN, threaded=True, num_threads=50)
 mm_tz = pytz.timezone('Asia/Yangon')
@@ -107,7 +107,6 @@ def get_withdraw_menu():
 def start(message):
     user_id = message.from_user.id
     
-    # User အဟောင်းဖြစ်စေ၊ အသစ်ဖြစ်စေ /start နှိပ်ရင် Channel Join ဖို့ အမြဲအရင်ပြမည်
     warning_text = (
         "\u26A0\uFE0F **သတိပေးချက်**\n\n"
         "Bot ကိုအသုံးပြုရန် အောက်ပါ Channel များကို အရင် Join ပေးပါ။\n"
@@ -116,7 +115,6 @@ def start(message):
     bot.send_message(user_id, warning_text, reply_markup=get_join_keyboard(), parse_mode="Markdown")
     bot.send_message(user_id, "\U0001F4E2 Channel များ Join ရန်", reply_markup=get_channel_inline_buttons(CHANNEL_LINKS))
 
-    # Referral system (Database ထဲမရှိသေးရင် ထည့်မယ်)
     referrer_id = 0
     if len(message.text.split()) > 1:
         ref_candidate = message.text.split()[1]
@@ -136,14 +134,12 @@ def start(message):
 @bot.message_handler(func=lambda m: m.text == "\u2705 Join ပြီးပါပြီ")
 def verify_join(message):
     user_id = message.from_user.id
-    # ခလုတ်နှိပ်တဲ့အချိန်မှာ Channel join မ join တကယ်စစ်ဆေးသည်
     if is_joined(user_id, CHANNELS):
         conn = psycopg2.connect(DB_URI)
         cursor = conn.cursor()
         cursor.execute("SELECT referred_by, is_rewarded FROM users WHERE user_id=%s", (user_id,))
         res = cursor.fetchone()
         
-        # ပထမဆုံးအကြိမ် verify လုပ်တာဆိုရင် reward ပေးမည်
         if res and res[1] == 0:
             cursor.execute("UPDATE users SET balance = balance + %s, is_rewarded = 1 WHERE user_id = %s", (NEW_USER_REWARD, user_id))
             if res[0] != 0:
@@ -174,7 +170,6 @@ def invite(message):
 def withdraw_start(message):
     user_id = message.from_user.id
     
-    # ငွေထုတ်ခါနီး Channel စစ်ဆေးခြင်း
     if not is_joined(user_id, CHANNELS) and user_id != ADMIN_ID:
         text = (
             "\u26A0\uFE0F **သတိပေးချက်**\n\n"
@@ -192,7 +187,6 @@ def withdraw_start(message):
     else: 
         bot.send_message(user_id, f"\u274C အနည်းဆုံး {MIN_WITHDRAW} Ks လိုပါသည်။ လက်ကျန် {bal} Ks သာရှိသည်။")
 
-# --- အခြားအပိုင်းများ (မူလအတိုင်း) ---
 @bot.message_handler(func=lambda m: m.text == "\U0001F4B0 လက်ကျန်စစ်ရန်")
 def balance(message):
     user_id = message.from_user.id
